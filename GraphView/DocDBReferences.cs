@@ -12,6 +12,9 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Microsoft.Azure.Documents.Client;
 using System.Collections;
+using System.Data;
+using System.Dynamic;
+using System.Runtime.CompilerServices;
 
 namespace GraphView
 {
@@ -93,4 +96,68 @@ namespace GraphView
 
         public List<string> header;
     }
+
+    public class DocDbReader : IDataReader
+    {
+        private IEnumerable<dynamic> DataSource;
+        private int index;
+
+        public DocDbReader(IEnumerable<dynamic> pDataSource)
+        {
+            index = -1;
+            DataSource = pDataSource;
+        }
+        public bool Read()
+        {
+            if (index < DataSource.Count())
+            {
+                index++;
+                return true;
+            }
+            else return false;
+        }
+        public object this[string FieldName]
+        {
+            get { return DataSource.ElementAt(index); }
+        }
+        public object this[int index]
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        public int Depth { get; set; }
+        public bool IsClosed { get; set; }
+        public int RecordsAffected { get; set; }
+        public int FieldCount { get; set; }
+        public void Close() { throw new NotImplementedException(); }
+        public void Dispose() { throw new NotImplementedException(); }
+        public bool GetBoolean(int x) { throw new NotImplementedException(); }
+        public byte GetByte(Int32 x) { throw new NotImplementedException(); }
+        public long GetBytes(Int32 x, Int64 y, Byte[] z, Int32 w, Int32 u) { throw new NotImplementedException(); }
+        public char GetChar(Int32 x) { throw new NotImplementedException(); }
+        public long GetChars(Int32 x, Int64 y, Char[] z, Int32 w, Int32 u) { throw new NotImplementedException(); }
+        public IDataReader GetData(Int32 x) { throw new NotImplementedException(); }
+        public string GetDataTypeName(Int32 x) { throw new NotImplementedException(); }
+        public DateTime GetDateTime(Int32 x) { throw new NotImplementedException(); }
+        public decimal GetDecimal(Int32 x) { throw new NotImplementedException(); }
+        public double GetDouble(Int32 x) { throw new NotImplementedException(); }
+        public Type GetFieldType(Int32 x) { throw new NotImplementedException(); }
+        public float GetFloat(Int32 x) { throw new NotImplementedException(); }
+        public Guid GetGuid(Int32 x) { throw new NotImplementedException(); }
+        public Int16 GetInt16(Int32 x) { throw new NotImplementedException(); }
+        public Int32 GetInt32(Int32 x) { throw new NotImplementedException(); }
+        public Int64 GetInt64(Int32 x) { throw new NotImplementedException(); }
+        public DataTable GetSchemaTable() { throw new NotImplementedException(); }
+        public string GetName(Int32 x) { throw new NotImplementedException(); }
+        public int GetOrdinal(string x) { throw new NotImplementedException(); }
+        public string GetString(Int32 x) { throw new NotImplementedException(); }
+        public object GetValue(Int32 x) { throw new NotImplementedException(); }
+        public int GetValues(object[] x) { throw new NotImplementedException(); }
+        public bool IsDBNull(Int32 x) { throw new NotImplementedException(); }
+        public bool NextResult() { throw new NotImplementedException(); }
+    }
 }
+

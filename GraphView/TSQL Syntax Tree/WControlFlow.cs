@@ -18,14 +18,14 @@ namespace GraphView.TSQL_Syntax_Tree
             return string.Join("", ChooseString);
         }
 
-        public override GraphViewOperator Generate(GraphViewConnection dbConnection)
+        public override GraphViewOperator Generate(GraphViewConnection connection, string collection)
         {
             List<GraphViewOperator> Source = new List<GraphViewOperator>();
             foreach (var x in InputExpr)
             {
-                Source.Add(x.Generate(dbConnection));
+                Source.Add(x.Generate(connection,collection));
             }
-            return new UnionOperator(dbConnection,Source,Source[0].header);
+            return new UnionOperator(connection,collection,Source,Source[0].header);
         }
     }
 
@@ -41,14 +41,14 @@ namespace GraphView.TSQL_Syntax_Tree
             return string.Join("", ChooseString);
         }
 
-        public override GraphViewOperator Generate(GraphViewConnection dbConnection)
+        public override GraphViewOperator Generate(GraphViewConnection connection, string collection)
         {
             List<GraphViewOperator> Source = new List<GraphViewOperator>();
             foreach (var x in InputExpr)
             {
-                Source.Add(x.Generate(dbConnection));
+                Source.Add(x.Generate(connection,collection));
             }
-            return new CoalesceOperator(dbConnection, Source, CoalesceNumber, Source[0].header);
+            return new CoalesceOperator(connection,collection, Source, CoalesceNumber, Source[0].header);
         }
     }
 }

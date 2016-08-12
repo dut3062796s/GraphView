@@ -47,27 +47,6 @@ namespace GraphView
         /// Returns the translated T-SQL script. For testing only.
         /// </summary>
         /// <returns>The translated T-SQL script</returns>
-        internal string GetTsqlQuery()
-        {
-            var sr = new StringReader(CommandText);
-            var parser = new GraphViewParser();
-            IList<ParseError> errors;
-            var script = parser.Parse(sr, out errors) as WSqlScript;
-            if (errors.Count > 0)
-                throw new SyntaxErrorException(errors);
-
-            if (errors.Count > 0)
-                throw new SyntaxErrorException(errors);
-
-            // Translation and Check CheckInvisibleColumn
-            using (SqlTransaction tx = GraphViewConnection.BeginTransaction())
-            {
-                var visitor = new TranslateMatchClauseVisitor(tx);
-                visitor.Invoke(script);
-
-                return script.ToString();
-            }
-        }
 
         public CommandType CommandType
         {
@@ -75,6 +54,7 @@ namespace GraphView
             set { Command.CommandType = value; }
         }
         public GraphViewConnection GraphViewConnection { get; set; }
+        public string collection { get; set; }
         
         public string CommandText { get; set; }
 
@@ -105,14 +85,12 @@ namespace GraphView
         {
             CommandText = commandText;
             GraphViewConnection = connection;
-            Command = GraphViewConnection.Conn.CreateCommand();
         }
 
         public GraphViewCommand(string commandText, GraphViewConnection connection, SqlTransaction transaction)
         {
             CommandText = commandText;
             GraphViewConnection = connection;
-            Command = GraphViewConnection.Conn.CreateCommand();
             Tx = transaction;
         }
 
@@ -135,10 +113,7 @@ namespace GraphView
                 var script = parser.Parse(sr, out errors) as WSqlScript;
                 if (errors.Count > 0)
                     throw new SyntaxErrorException(errors);
-
-                var DocumentDBConnection = GraphViewConnection;
-
-                DocumentDBConnection.SetupClient();
+                GraphViewConnection.Open();
 
                 foreach (var Batch in script.Batches)
                     foreach (var statement in Batch.Statements)
@@ -146,13 +121,16 @@ namespace GraphView
                         {
                             var selectStatement = (statement as WSelectStatement);
                             var Query = selectStatement.QueryExpr as WSelectQueryBlock;
-                            GraphViewDataReader Reader = new GraphViewDataReader(Query.Generate(DocumentDBConnection));
+                            GraphViewDataReader Reader = new GraphViewDataReader(Query.Generate(GraphViewConnection,collection));
+                            GraphViewConnection.Close();
                             return Reader;
                         }
+                GraphViewConnection.Close();
                 return null;
             }
             catch (DocumentClientException e)
             {
+                GraphViewConnection.Close();
                 throw new SqlExecutionException("An error occurred when executing the query", e);
             }
         }

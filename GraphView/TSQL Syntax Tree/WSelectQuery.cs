@@ -343,16 +343,16 @@ namespace GraphView
             base.AcceptChildren(visitor);
         }
 
-        public override GraphViewOperator Generate(GraphViewConnection pConnection)
+        public override GraphViewOperator Generate(GraphViewConnection connection, string collection)
         {
             // Construct Match graph for later use
             MatchGraph graph = ConstructGraph();
             // Construct a header for the processor it will generate to interpret its result
             List<string> header = ConstructHeader(graph);
             // Attach pre-generated docDB script to the node on Match graph
-            List<BooleanFunction> Functions = AttachScriptSegment(graph, header);
+            List<BooleanFunction> Functions = AttachScriptSegment(connection, graph, header);
             // Generate proper processor for the current syntax element
-            return GenerateProcessor(graph, header, pConnection, Functions);
+            return GenerateProcessor(graph, header, connection, collection, Functions);
         }
 
         private MatchGraph ConstructGraph()
@@ -580,7 +580,7 @@ namespace GraphView
             return Graph;
         }
 
-        private List<BooleanFunction> AttachScriptSegment(MatchGraph graph, List<string> header)
+        private List<BooleanFunction> AttachScriptSegment(GraphViewConnection connection, MatchGraph graph, List<string> header)
         {
             AttachWhereClauseVisitor AttachPredicateVistor = new AttachWhereClauseVisitor();
             WSqlTableContext Context = new WSqlTableContext();
@@ -637,7 +637,7 @@ namespace GraphView
                 while (SortedNodeList.Count != 0)
                 {
                     MatchNode CurrentProcessingNode = SortedNodeList.Pop();
-                    BuildQuerySegementOnNode(ProcessedNodeList, CurrentProcessingNode, header, StartOfResult);
+                    connection.portal.TranslateScriptSegment(ProcessedNodeList, CurrentProcessingNode, header, StartOfResult);
                     ProcessedNodeList.Add(CurrentProcessingNode.NodeAlias);
                 }
             }
@@ -672,7 +672,7 @@ namespace GraphView
             }
             return header;
         }
-        private GraphViewOperator GenerateProcessor(MatchGraph graph, List<string> header, GraphViewConnection pConnection, List<BooleanFunction> functions)
+        private GraphViewOperator GenerateProcessor(MatchGraph graph, List<string> header, GraphViewConnection connection, string collection, List<BooleanFunction> functions)
         {
             Record RecordZero = new Record(header.Count);
 
@@ -699,7 +699,7 @@ namespace GraphView
                     if (FirstNodeFlag)
                     {
                         int node = header.IndexOf(CurrentProcessingNode.NodeAlias);
-                        ChildrenProcessor.Add(new FetchNodeOperator(pConnection, CurrentProcessingNode.AttachedQuerySegment, node, header, StartOfResult, 50));
+                        ChildrenProcessor.Add(new FetchNodeOperator(connection,collection, CurrentProcessingNode.AttachedQuerySegment, node, header, StartOfResult, 50));
                         FirstNodeFlag = false;
                     }
                     else
@@ -709,7 +709,7 @@ namespace GraphView
                         int dest = header.IndexOf(CurrentProcessingNode.NodeAlias);
                         foreach (var neighbor in CurrentProcessingNode.ReverseNeighbors)
                             ReverseCheckList.Add(header.IndexOf(neighbor.SinkNode.NodeAlias), neighbor.EdgeAlias + "_REV");
-                        ChildrenProcessor.Add(new TraversalOperator(pConnection, ChildrenProcessor.Last(), CurrentProcessingNode.AttachedQuerySegment, src, dest, header, ReverseCheckList, StartOfResult, 50, 50));
+                        ChildrenProcessor.Add(new TraversalOperator(connection, collection, ChildrenProcessor.Last(), CurrentProcessingNode.AttachedQuerySegment, src, dest, header, ReverseCheckList, StartOfResult, 50, 50));
                     }
                     for (int i = 0; i < functions.Count; i++)
                     {
@@ -738,96 +738,96 @@ namespace GraphView
                 RootProcessor.Add(ChildrenProcessor.Last());
             }
             // A cartesian product will be made among all the result from the root processor in order to produce a complete result
-            return new CartesianProductOperator(pConnection, RootProcessor, header, 100);
+            return new CartesianProductOperator(connection, collection, RootProcessor, header, 100);
         }
 
-        private void BuildQuerySegementOnNode(List<string> ProcessedNodeList, MatchNode node, List<string> header, int pStartOfResultField)
-        {
-            // Node predicates will be attached here.
-            string FromClauseString = node.NodeAlias;
-            string WhereClauseString = "";
-            //string AttachedClause = "From " + node.NodeAlias;
-            string PredicatesOnReverseEdge = "";
-            string PredicatesOnNodes = "";
-            foreach (var edge in node.ReverseNeighbors.Concat(node.Neighbors))
-            {
-                if (node.ReverseNeighbors.Contains(edge))
-                    FromClauseString += " Join " + edge.EdgeAlias + " in " + node.NodeAlias + "._reverse_edge ";
-                else
-                    FromClauseString += " Join " + edge.EdgeAlias + " in " + node.NodeAlias + "._edge ";
-                if (edge != node.ReverseNeighbors.Concat(node.Neighbors).Last())
-                    foreach (var predicate in edge.Predicates)
-                    {
-                        PredicatesOnReverseEdge += predicate + " AND ";
-                    }
-                else
-                    foreach (var predicate in edge.Predicates)
-                    {
-                        if (predicate != edge.Predicates.Last())
-                            PredicatesOnReverseEdge += predicate + " AND ";
-                        else PredicatesOnReverseEdge += predicate;
-                    }
-            }
+        //private void BuildQuerySegementOnNode(List<string> ProcessedNodeList, MatchNode node, List<string> header, int pStartOfResultField)
+        //{
+        //    // Node predicates will be attached here.
+        //    string FromClauseString = node.NodeAlias;
+        //    string WhereClauseString = "";
+        //    //string AttachedClause = "From " + node.NodeAlias;
+        //    string PredicatesOnReverseEdge = "";
+        //    string PredicatesOnNodes = "";
+        //    foreach (var edge in node.ReverseNeighbors.Concat(node.Neighbors))
+        //    {
+        //        if (node.ReverseNeighbors.Contains(edge))
+        //            FromClauseString += " Join " + edge.EdgeAlias + " in " + node.NodeAlias + "._reverse_edge ";
+        //        else
+        //            FromClauseString += " Join " + edge.EdgeAlias + " in " + node.NodeAlias + "._edge ";
+        //        if (edge != node.ReverseNeighbors.Concat(node.Neighbors).Last())
+        //            foreach (var predicate in edge.Predicates)
+        //            {
+        //                PredicatesOnReverseEdge += predicate + " AND ";
+        //            }
+        //        else
+        //            foreach (var predicate in edge.Predicates)
+        //            {
+        //                if (predicate != edge.Predicates.Last())
+        //                    PredicatesOnReverseEdge += predicate + " AND ";
+        //                else PredicatesOnReverseEdge += predicate;
+        //            }
+        //    }
 
-            FromClauseString = " FROM " + FromClauseString;
+        //    FromClauseString = " FROM " + FromClauseString;
 
-            foreach (var predicate in node.Predicates)
-            {
-                if (predicate != node.Predicates.Last())
-                    PredicatesOnNodes += predicate + " AND ";
-                else
-                    PredicatesOnNodes += predicate;
-            }
-            if (PredicatesOnNodes != "" || PredicatesOnReverseEdge != "")
-            {
-                WhereClauseString += " WHERE ";
-                if (PredicatesOnNodes != "" && PredicatesOnReverseEdge != "")
-                    WhereClauseString += PredicatesOnNodes + " AND " + PredicatesOnReverseEdge;
-                else WhereClauseString += PredicatesOnNodes + PredicatesOnReverseEdge;
-            }
+        //    foreach (var predicate in node.Predicates)
+        //    {
+        //        if (predicate != node.Predicates.Last())
+        //            PredicatesOnNodes += predicate + " AND ";
+        //        else
+        //            PredicatesOnNodes += predicate;
+        //    }
+        //    if (PredicatesOnNodes != "" || PredicatesOnReverseEdge != "")
+        //    {
+        //        WhereClauseString += " WHERE ";
+        //        if (PredicatesOnNodes != "" && PredicatesOnReverseEdge != "")
+        //            WhereClauseString += PredicatesOnNodes + " AND " + PredicatesOnReverseEdge;
+        //        else WhereClauseString += PredicatesOnNodes + PredicatesOnReverseEdge;
+        //    }
 
-            // Select elements that related to current node will be attached here.
+        //    // Select elements that related to current node will be attached here.
 
-            List<string> ResultIndexToAppend = new List<string>();
-            foreach (string ResultIndex in header.GetRange(pStartOfResultField, header.Count - pStartOfResultField))
-            {
-                int CutPoint = ResultIndex.Length;
-                if (ResultIndex.IndexOf('.') != -1) CutPoint = ResultIndex.IndexOf('.');
-                if (ResultIndex.Substring(0, CutPoint) == node.NodeAlias)
-                    ResultIndexToAppend.Add(ResultIndex);
-                foreach (var edge in node.ReverseNeighbors)
-                {
-                    if (ResultIndex.Substring(0, CutPoint) == edge.EdgeAlias)
-                        ResultIndexToAppend.Add(ResultIndex);
-                }
-            }
+        //    List<string> ResultIndexToAppend = new List<string>();
+        //    foreach (string ResultIndex in header.GetRange(pStartOfResultField, header.Count - pStartOfResultField))
+        //    {
+        //        int CutPoint = ResultIndex.Length;
+        //        if (ResultIndex.IndexOf('.') != -1) CutPoint = ResultIndex.IndexOf('.');
+        //        if (ResultIndex.Substring(0, CutPoint) == node.NodeAlias)
+        //            ResultIndexToAppend.Add(ResultIndex);
+        //        foreach (var edge in node.ReverseNeighbors)
+        //        {
+        //            if (ResultIndex.Substring(0, CutPoint) == edge.EdgeAlias)
+        //                ResultIndexToAppend.Add(ResultIndex);
+        //        }
+        //    }
 
-            string ResultIndexString = ",";
-            foreach (string ResultIndex in ResultIndexToAppend)
-            {
-                if (ResultIndex.Substring(ResultIndex.Length - 3,3) == "doc")
-                ResultIndexString += ResultIndex.Substring(0, ResultIndex.Length - 4) + " AS " + ResultIndex.Replace(".", "_") + ",";
-                else ResultIndexString += ResultIndex + " AS " + ResultIndex.Replace(".", "_") + ",";
-            }
-            if (ResultIndexString == ",") ResultIndexString = "";
-            ResultIndexString = CutTheTail(ResultIndexString);
+        //    string ResultIndexString = ",";
+        //    foreach (string ResultIndex in ResultIndexToAppend)
+        //    {
+        //        if (ResultIndex.Substring(ResultIndex.Length - 3,3) == "doc")
+        //        ResultIndexString += ResultIndex.Substring(0, ResultIndex.Length - 4) + " AS " + ResultIndex.Replace(".", "_") + ",";
+        //        else ResultIndexString += ResultIndex + " AS " + ResultIndex.Replace(".", "_") + ",";
+        //    }
+        //    if (ResultIndexString == ",") ResultIndexString = "";
+        //    ResultIndexString = CutTheTail(ResultIndexString);
 
-            // Reverse checking related script will be attached here.
-            string ReverseCheckString = ",";
-            foreach (var ReverseEdge in node.ReverseNeighbors.Concat(node.Neighbors))
-            {
-                if (ProcessedNodeList.Contains(ReverseEdge.SinkNode.NodeAlias))
-                    ReverseCheckString += ReverseEdge.EdgeAlias + " AS " + ReverseEdge.EdgeAlias + "_REV,";
-            }
-            if (ReverseCheckString == ",") ReverseCheckString = "";
-            ReverseCheckString = CutTheTail(ReverseCheckString);
+        //    // Reverse checking related script will be attached here.
+        //    string ReverseCheckString = ",";
+        //    foreach (var ReverseEdge in node.ReverseNeighbors.Concat(node.Neighbors))
+        //    {
+        //        if (ProcessedNodeList.Contains(ReverseEdge.SinkNode.NodeAlias))
+        //            ReverseCheckString += ReverseEdge.EdgeAlias + " AS " + ReverseEdge.EdgeAlias + "_REV,";
+        //    }
+        //    if (ReverseCheckString == ",") ReverseCheckString = "";
+        //    ReverseCheckString = CutTheTail(ReverseCheckString);
 
-            // The DocDb script that related to the giving node will be assembled here.
-            string ScriptBase = "SELECT {\"id\":node.id, \"edge\":node._edge, \"reverse\":node._reverse_edge} AS NodeInfo";
-            string QuerySegment = QuerySegment = ScriptBase.Replace("node", node.NodeAlias) + ResultIndexString + " " + ReverseCheckString;
-            QuerySegment += FromClauseString + WhereClauseString;
-            node.AttachedQuerySegment = QuerySegment;
-        }
+        //    // The DocDb script that related to the giving node will be assembled here.
+        //    string ScriptBase = "SELECT {\"id\":node.id, \"edge\":node._edge, \"reverse\":node._reverse_edge} AS NodeInfo";
+        //    string QuerySegment = QuerySegment = ScriptBase.Replace("node", node.NodeAlias) + ResultIndexString + " " + ReverseCheckString;
+        //    QuerySegment += FromClauseString + WhereClauseString;
+        //    node.AttachedQuerySegment = QuerySegment;
+        //}
 
         // Cut the last character of a string.
         private string CutTheTail(string InRangeScript)

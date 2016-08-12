@@ -183,7 +183,7 @@ namespace GraphView
         /// </summary>
         /// <param name="docDbConnection">The Connection</param>
         /// <returns></returns>
-        public override GraphViewOperator Generate(GraphViewConnection dbConnection)
+        public override GraphViewOperator Generate(GraphViewConnection dbConnection, string collect)
         {
             string Json_str = ConstructNode();
 
@@ -601,7 +601,7 @@ namespace GraphView
             #endregion
         }
 
-        public override GraphViewOperator Generate(GraphViewConnection dbConnection)
+        public override GraphViewOperator Generate(GraphViewConnection connection, string collection)
         {
             ChangeSelectQuery();
 
@@ -615,12 +615,12 @@ namespace GraphView
 
             var n4 = SelectQueryBlock.SelectElements[3] as WSelectScalarExpression;
 
-            GraphViewOperator input = SelectQueryBlock.Generate(dbConnection);
+            GraphViewOperator input = SelectQueryBlock.Generate(connection, collection);
             if (input == null)
             {
                 throw new GraphViewException("The delete source of the DELETE EDGE statement is invalid.");
             }
-            DeleteEdgeOperator DeleteOp = new DeleteEdgeOperator(dbConnection, input, n1.ToString(), n2.ToString(), n3.ToString(), n4.ToString());
+            DeleteEdgeOperator DeleteOp = new DeleteEdgeOperator(connection, input, n1.ToString(), n2.ToString(), n3.ToString(), n4.ToString());
 
             return DeleteOp;
         }

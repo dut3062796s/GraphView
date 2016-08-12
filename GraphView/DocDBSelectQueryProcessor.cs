@@ -31,6 +31,7 @@ namespace GraphView
 
         // GraphView connection.
         private GraphViewConnection connection;
+        private string collection = "";
 
         // Defining from which field in the record does the traversal goes to which field.
         private int src;
@@ -43,11 +44,12 @@ namespace GraphView
         private Dictionary<int,string> ReverseCheckList;
         internal BooleanFunction BooleanCheck;
 
-        internal TraversalOperator(GraphViewConnection pConnection, GraphViewOperator pChildProcessor, string pScript, int pSrc, int pDest, List<string> pheader, Dictionary<int, string> pReverseCheckList, int pStartOfResultField, int pInputBufferSize, int pOutputBufferSize, BooleanFunction pBooleanCheck = null)
+        internal TraversalOperator(GraphViewConnection pConnection, string pCollection, GraphViewOperator pChildProcessor, string pScript, int pSrc, int pDest, List<string> pheader, Dictionary<int, string> pReverseCheckList, int pStartOfResultField, int pInputBufferSize, int pOutputBufferSize, BooleanFunction pBooleanCheck = null)
         {
             this.Open();
             ChildOperator = pChildProcessor;
             connection = pConnection;
+            collection = pCollection;
             docDbScript = pScript;
             InputBufferSize = pInputBufferSize;
             OutputBufferSize = pOutputBufferSize;
@@ -100,10 +102,11 @@ namespace GraphView
                 else script += " AND " + header[dest] + ".id IN (" + InRangeScript + ")";
 
                 // Send query to server and decode the result.
-                IQueryable<dynamic> Node = (IQueryable<dynamic>)SendQuery(script, connection);
+                IDataReader reader = connection.portal.RetriveDocument(collection, script);
                 HashSet<Tuple<string, string, string>> UniqueRecord = new HashSet<Tuple<string, string, string>>();
-                foreach (var item in Node)
+                while(reader.Read())
                 {
+                    var item = reader["default"];
                     Tuple<string, string, string> ItemInfo = DecodeJObject((JObject)item);
                     string ID = ItemInfo.Item1;
                     if (!UniqueRecord.Contains(ItemInfo))
@@ -143,13 +146,6 @@ namespace GraphView
         }
 
         // Send a query to server and retrive result.
-        private IQueryable<dynamic> SendQuery(string script, GraphViewConnection connection)
-        {
-            FeedOptions QueryOptions = new FeedOptions { MaxItemCount = -1 };
-            IQueryable<dynamic> Result = connection.DocDBclient.CreateDocumentQuery(
-                UriFactory.CreateDocumentCollectionUri(connection.DocDB_DatabaseId, connection.DocDB_CollectionId), script, QueryOptions);
-            return Result;
-        }
 
         private bool RecordFilter(Record r)
         {
@@ -208,15 +204,17 @@ namespace GraphView
         private int StartOfResultField;
 
         private GraphViewConnection connection;
+        private string collection;
 
         private int node;
 
         private string docDbScript;
 
-        public FetchNodeOperator(GraphViewConnection pConnection, string pScript, int pnode, List<string> pheader, int pStartOfResultField, int pOutputBufferSize)
+        public FetchNodeOperator(GraphViewConnection pConnection, string pCollection, string pScript, int pnode, List<string> pheader, int pStartOfResultField, int pOutputBufferSize)
         {
             this.Open();
             connection = pConnection;
+            collection = pCollection;
             docDbScript = pScript;
             OutputBufferSize = pOutputBufferSize;
             node = pnode;
@@ -236,11 +234,12 @@ namespace GraphView
             }
             string script = docDbScript;
             // Send query to the server
-            IQueryable<dynamic> Node = (IQueryable<dynamic>)SendQuery(script, connection);
+            IDataReader reader = connection.portal.RetriveDocument(collection, script);
             HashSet<Tuple<string, string, string>> UniqueRecord = new HashSet<Tuple<string, string, string>>();
             // Decode the result retrived from server and generate new record.
-            foreach (var item in Node)
+            while (reader.Read())
             {
+                var item = reader["default"];
                 Tuple<string, string, string> ItemInfo = DecodeJObject((JObject)item);
 
                 if (!UniqueRecord.Contains(ItemInfo))
@@ -263,14 +262,6 @@ namespace GraphView
             if (OutputBuffer.Count <= 1) this.Close();
             if (OutputBuffer.Count != 0) return OutputBuffer.Dequeue();
             return null;
-        }
-
-        private IQueryable<dynamic> SendQuery(string script, GraphViewConnection connection)
-        {
-            FeedOptions QueryOptions = new FeedOptions { MaxItemCount = -1 };
-            IQueryable<dynamic> Result = connection.DocDBclient.CreateDocumentQuery(
-                UriFactory.CreateDocumentCollectionUri(connection.DocDB_DatabaseId, connection.DocDB_CollectionId), script, QueryOptions);
-            return Result;
         }
 
         private Tuple<string, string, string> DecodeJObject(JObject Item, bool ShowEdge = false)
@@ -329,10 +320,12 @@ namespace GraphView
         private int OutputBufferSize;
 
         private GraphViewConnection connection;
-        public CartesianProductOperator(GraphViewConnection pConnection, List<GraphViewOperator> pProcessorOnSubGraph, List<string> pheader, int pOutputBufferSize)
+        private string collection;
+        public CartesianProductOperator(GraphViewConnection pConnection, string pCollection, List<GraphViewOperator> pProcessorOnSubGraph, List<string> pheader, int pOutputBufferSize)
         {
             this.Open();
             connection = pConnection;
+            collection = pCollection;
             OutputBufferSize = pOutputBufferSize;
             header = pheader;
             OperatorOnSubGraphs = pProcessorOnSubGraph;
@@ -393,12 +386,14 @@ namespace GraphView
     {
         internal List<GraphViewOperator> Sources;
         internal GraphViewConnection connection;
+        internal string collection;
         internal int FromWhichSource;
         internal Record result;
-        public UnionOperator(GraphViewConnection pConnection, List<GraphViewOperator> pSources, List<string> pheader)
+        public UnionOperator(GraphViewConnection pConnection, string pCollection, List<GraphViewOperator> pSources, List<string> pheader)
         {
             this.Open();
             connection = pConnection;
+            collection = pCollection;
             header = pheader;
             Sources = pSources;
             FromWhichSource = 0;
@@ -427,13 +422,15 @@ namespace GraphView
     {
         internal List<GraphViewOperator> Sources;
         internal GraphViewConnection connection;
+        internal string collection;
         internal int FromWhichSource;
         internal Record result;
         internal int CoalesceNumber;
-        public CoalesceOperator(GraphViewConnection pConnection, List<GraphViewOperator> pSources, int pCoalesceNumber, List<string> pheader)
+        public CoalesceOperator(GraphViewConnection pConnection, string pCollection, List<GraphViewOperator> pSources, int pCoalesceNumber, List<string> pheader)
         {
             this.Open();
             connection = pConnection;
+            collection = pCollection;
             header = pheader;
             Sources = pSources;
             FromWhichSource = 0;

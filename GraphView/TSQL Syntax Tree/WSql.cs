@@ -96,7 +96,7 @@ namespace GraphView
 
         }
 
-        public virtual GraphViewOperator Generate(GraphViewConnection dbConnection) 
+        public virtual GraphViewOperator Generate(GraphViewConnection connection, string collection) 
         {
             return null;
         }
