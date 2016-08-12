@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -15,7 +16,6 @@ namespace GraphView
         public string edge;
         public string source, sink;
         public GraphViewConnection dbConnection;
-        private bool UploadFinish;
         internal Dictionary<string, string> map;
         public string collection;
 
@@ -85,8 +85,8 @@ namespace GraphView
                 List<string> header = SelectInput.header;
                 string sourceid = rec.RetriveData(header, source);
                 string sinkid = rec.RetriveData(header, sink);
-                string source_tital = source[0] + ".doc";
-                string sink_tital = sink[0] + ".doc";
+                string source_tital = source + ".doc";
+                string sink_tital = sink + ".doc";
 
                 string source_json_str = rec.RetriveData(header, source_tital);
                 string sink_json_str = rec.RetriveData(header, sink_tital);
@@ -113,19 +113,19 @@ namespace GraphView
 
         internal void Upload()
         {
-            UploadFinish = false;
+            dbConnection.portal.UploadFinish = false;
             ReplaceDocument();
 
             //Wait until finish replacing.
-            while (!UploadFinish)
+            while (!dbConnection.portal.UploadFinish)
                 System.Threading.Thread.Sleep(10);
         }
 
         public async Task ReplaceDocument()
         {
             foreach (var cnt in map)
-                await GraphViewDocDBCommand.ReplaceDocument(dbConnection, cnt.Key, cnt.Value);
-            UploadFinish = true;
+                dbConnection.portal.ReplaceDocument(cnt.Key,cnt.Value,collection);
+            dbConnection.portal.UploadFinish = true;
         }
     }
 
@@ -168,11 +168,20 @@ namespace GraphView
                 //The "e" in the Record is "Reverse_e" in fact
                 string EdgeReverseID = rec.RetriveData(header, EdgeID_str);
                 string EdgeID = rec.RetriveData(header, EdgeReverseID_str);
+
+                //get source.doc and sink.doc
+                string source_tital = source + ".doc";
+                string sink_tital = sink + ".doc";
+                string source_json_str = rec.RetriveData(header, source_tital);
+                string sink_json_str = rec.RetriveData(header, sink_tital);
+
                 int ID, reverse_ID;
                 int.TryParse(EdgeID, out ID);
                 int.TryParse(EdgeReverseID, out reverse_ID);
 
-                DeleteEdgeInMap(sourceid,sinkid,ID,reverse_ID);
+
+
+                DeleteEdgeInMap(sourceid,sinkid,ID,reverse_ID,source_json_str,sink_json_str);
             }
 
             Upload();
@@ -182,32 +191,14 @@ namespace GraphView
             return null;
         }
 
-        internal void DeleteEdgeInMap(string sourceid, string sinkid, int ID, int reverse_ID)
+        internal void DeleteEdgeInMap(string sourceid, string sinkid, int ID, int reverse_ID,string source_json_str, string sink_json_str)
         {
 
             //Create one if a document not exist locally.
             if (!map.ContainsKey(sourceid))
-            {
-                var documents =
-                    dbConnection.DocDBclient.CreateDocumentQuery(
-                        "dbs/" + dbConnection.DocDB_DatabaseId + "/colls/" +
-                        dbConnection.DocDB_CollectionId,
-                        "SELECT * " +
-                        string.Format("FROM doc WHERE doc.id = \"{0}\"", sourceid));
-                foreach (var doc in documents)
-                    map[sourceid] = JsonConvert.SerializeObject(doc);
-            }
+                map[sourceid] = source_json_str;
             if (!map.ContainsKey(sinkid))
-            {
-                var documents =
-                    dbConnection.DocDBclient.CreateDocumentQuery(
-                        "dbs/" + dbConnection.DocDB_DatabaseId + "/colls/" +
-                        dbConnection.DocDB_CollectionId,
-                        "SELECT * " +
-                        string.Format("FROM doc WHERE doc.id = \"{0}\"", sinkid));
-                foreach (var doc in documents)
-                    map[sinkid] = JsonConvert.SerializeObject(doc);
-            }
+                map[sinkid] = sink_json_str;
 
             map[sourceid] = GraphViewJsonCommand.Delete_edge(map[sourceid], ID);
             map[sinkid] = GraphViewJsonCommand.Delete_reverse_edge(map[sinkid], reverse_ID);
@@ -225,8 +216,8 @@ namespace GraphView
         public async Task ReplaceDocument()
         {
             foreach (var cnt in map)
-                await GraphViewDocDBCommand.ReplaceDocument(dbConnection, cnt.Key, cnt.Value);
-            UploadFinish = true;
+                dbConnection.portal.ReplaceDocument(cnt.Key, cnt.Value, collection);
+            dbConnection.portal.UploadFinish = true;
         }
     }
 
@@ -235,7 +226,6 @@ namespace GraphView
         public string Json_str;
         public GraphViewConnection dbConnection;
         public string collection;
-        public bool UploadFinish;
 
         public InsertNodeOperator(GraphViewConnection dbConnection, string collection, string Json_str)
         {
@@ -247,29 +237,26 @@ namespace GraphView
         public override Record Next()
         {
             if (!Status()) return null;
-
-            var obj = JObject.Parse(Json_str);
-
-            Upload(obj);
+            
+            Upload(Json_str);
 
             Close();
             return null;
         }
 
-        void Upload(JObject obj)
+        void Upload(string Json_str)
         {
-            UploadFinish = false;
-            CreateDocument(obj);
+            dbConnection.portal.UploadFinish = false;
+            CreateDocument(Json_str);
 
             //Wait until finish Creating documents.
-            while (!UploadFinish)
+            while (!dbConnection.portal.UploadFinish)
                 System.Threading.Thread.Sleep(10);
         }
 
-        public async Task CreateDocument(JObject obj)
+        public async Task CreateDocument(string Json_str)
         {
-            await dbConnection.DocDBclient.CreateDocumentAsync("dbs/" + dbConnection.DocDB_DatabaseId + "/colls/" + dbConnection.DocDB_CollectionId, obj);
-            UploadFinish = true;
+            dbConnection.portal.InsertDocument(Json_str, collection);
         }
     }
     internal class DeleteNodeOperator : GraphViewOperator
@@ -278,7 +265,6 @@ namespace GraphView
         public string Selectstr;
         public GraphViewConnection dbConnection;
         public string collection;
-        public bool UploadFinish;
 
         public DeleteNodeOperator(GraphViewConnection dbConnection,string collection,WBooleanExpression search, string Selectstr)
         {
@@ -288,18 +274,30 @@ namespace GraphView
             this.collection = collection;
             Open();
         }
-
+        private bool CheckObject(JObject Item)
+        {
+            JToken edge = Item["edge"];
+            JToken reverse = Item["reverse"];
+            foreach (var x in reverse)
+                return false;
+            foreach (var x in edge)
+                return false;
+            return true;
+        }
         /// <summary>
         /// Check if there are some edges still connect to these nodes.
         /// </summary>
         /// <returns></returns>
         internal bool CheckNodes()
         {
-            var sum_DeleteNode = dbConnection.DocDBclient.CreateDocumentQuery(
-                                "dbs/" + dbConnection.DocDB_DatabaseId + "/colls/" + dbConnection.DocDB_CollectionId,
-                                Selectstr);
-            foreach (var DeleteNode in sum_DeleteNode)
-                return false;
+            var sum_DeleteNode = dbConnection.portal.RetriveDocument(collection, Selectstr);
+
+            while (sum_DeleteNode.Read())
+            {
+                var item = sum_DeleteNode["default"];
+                if (!CheckObject((JObject) item))
+                    return false;
+            }
             return true;
         }
 
@@ -309,22 +307,18 @@ namespace GraphView
         /// </summary>
         internal void DeleteNodes()
         {
-            Selectstr = "SELECT * " + "FROM Node ";
-            if (search != null)
-                Selectstr += @"WHERE " + search.ToString();
-            var sum_DeleteNode = dbConnection.DocDBclient.CreateDocumentQuery(
-                "dbs/" + dbConnection.DocDB_DatabaseId + "/colls/" + dbConnection.DocDB_CollectionId,
-                Selectstr);
+            var sum_DeleteNode = dbConnection.portal.RetriveDocument(collection, Selectstr);
 
-            foreach (var DeleteNode in sum_DeleteNode)
+            while (sum_DeleteNode.Read())
             {
-                UploadFinish = false;
-                var docLink = string.Format("dbs/{0}/colls/{1}/docs/{2}", dbConnection.DocDB_DatabaseId,
-                    dbConnection.DocDB_CollectionId, DeleteNode.id);
-                DeleteDocument(docLink);
+                var item = sum_DeleteNode["default"];
+                JToken id = ((JObject) item)["id"];
+                dbConnection.portal.UploadFinish = false;
+                DeleteDocument(id.ToString());
                 //wait until finish deleting
-                while (!UploadFinish)
+                while (!dbConnection.portal.UploadFinish)
                     System.Threading.Thread.Sleep(10);
+
             }
         }
 
@@ -351,10 +345,9 @@ namespace GraphView
             return null;
         }
 
-        public async Task DeleteDocument(string docLink)
+        public async Task DeleteDocument(string docid)
         {
-            await dbConnection.DocDBclient.DeleteDocumentAsync(docLink);
-            UploadFinish = true;
+            dbConnection.portal.DeleteDocument(docid,collection);
         }
     }
 

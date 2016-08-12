@@ -13,7 +13,7 @@ namespace GraphView
 {
     public abstract class DBPortal
     {
-
+        public bool UploadFinish;
         public abstract void InsertDocument(string doc, string collection);
         public abstract void DeleteDocument(string DocID, string collection);
         public abstract void ReplaceDocument(string DocID, string NewDoc, string collection);
@@ -21,6 +21,7 @@ namespace GraphView
         public abstract string ConsturctDeleteNodeScript();
         public abstract void TranslateScriptSegment(List<string> ProcessedNodeList, MatchNode node, List<string> header,
             int pStartOfResultField);
+        public abstract string ConstructDeleteNodeSelectQuery(string search);
 
     }
 
@@ -35,17 +36,19 @@ namespace GraphView
         public override async void InsertDocument(string doc, string collection)
         {
             await connection.DocDbClient.CreateDocumentAsync("dbs/" + connection.DatabaseID + "/colls/" + collection, doc);
+            UploadFinish = true;
         }
 
         public override async void DeleteDocument(string DocID, string collection)
         {
-            await connection.DocDbClient.DeleteDocumentAsync("dbs/" + connection.DatabaseID + "/colls/" + collection + "/docs/" + DocID); 
+            await connection.DocDbClient.DeleteDocumentAsync("dbs/" + connection.DatabaseID + "/colls/" + collection + "/docs/" + DocID);
+            UploadFinish = true;
         }
 
-        public override void ReplaceDocument(string DocID, string NewDoc, string collection)
+        public override async void ReplaceDocument(string DocID, string NewDoc, string collection)
         {
-            DeleteDocument(DocID,collection);
-            InsertDocument(NewDoc,collection);
+            var new_source = JObject.Parse(NewDoc);
+            connection.DocDbClient.ReplaceDocumentAsync("dbs/" + connection.DatabaseID + "/colls/" + collection + "/docs/" + DocID, new_source);
         }
 
         public override IDataReader RetriveDocument(string collection, string script)
@@ -55,7 +58,14 @@ namespace GraphView
                 UriFactory.CreateDocumentCollectionUri(connection.DatabaseID, collection), script, QueryOptions);
             return new DocDbReader(Result.ToList());
         }
-
+        public override string ConstructDeleteNodeSelectQuery(string search)
+        {
+            string Selectstr = "SELECT * " + "FROM Node ";
+            if(search!="")
+                Selectstr += @"WHERE " + search;
+            return Selectstr;
+        }
+        
         public override void TranslateScriptSegment(List<string> ProcessedNodeList, MatchNode node, List<string> header,
             int pStartOfResultField)
         {
