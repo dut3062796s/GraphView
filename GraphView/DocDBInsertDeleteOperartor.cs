@@ -17,15 +17,17 @@ namespace GraphView
         public GraphViewConnection dbConnection;
         private bool UploadFinish;
         internal Dictionary<string, string> map;
+        public string collection;
 
 
-        public InsertEdgeOperator(GraphViewConnection dbConnection, GraphViewOperator SelectInput, string edge, string source, string sink)
+        public InsertEdgeOperator(GraphViewConnection dbConnection, string collection, GraphViewOperator SelectInput, string edge, string source, string sink)
         {
             this.dbConnection = dbConnection;
             this.SelectInput = SelectInput;
             this.edge = edge;
             this.source = source;
             this.sink = sink;
+            this.collection = collection;
             Open();
         }
 
@@ -136,8 +138,9 @@ namespace GraphView
         public string EdgeID_str;
         public string EdgeReverseID_str;
         internal Dictionary<string, string> map;
+        public string collection;
 
-        public DeleteEdgeOperator(GraphViewConnection dbConnection, GraphViewOperator SelectInput,  string source, string sink, string EdgeID_str, string EdgeReverseID_str)
+        public DeleteEdgeOperator(GraphViewConnection dbConnection, string collection, GraphViewOperator SelectInput,  string source, string sink, string EdgeID_str, string EdgeReverseID_str)
         {
             this.dbConnection = dbConnection;
             this.SelectInput = SelectInput;
@@ -145,6 +148,7 @@ namespace GraphView
             this.sink = sink;
             this.EdgeID_str = EdgeID_str;
             this.EdgeReverseID_str = EdgeReverseID_str;
+            this.collection = collection;
             Open();
         }
 
@@ -230,12 +234,14 @@ namespace GraphView
     {
         public string Json_str;
         public GraphViewConnection dbConnection;
+        public string collection;
         public bool UploadFinish;
 
-        public InsertNodeOperator(GraphViewConnection dbConnection, string Json_str)
+        public InsertNodeOperator(GraphViewConnection dbConnection, string collection, string Json_str)
         {
             this.dbConnection = dbConnection;
             this.Json_str = Json_str;
+            this.collection = collection;
             Open();
         }
         public override Record Next()
@@ -271,13 +277,15 @@ namespace GraphView
         public WBooleanExpression search;
         public string Selectstr;
         public GraphViewConnection dbConnection;
+        public string collection;
         public bool UploadFinish;
 
-        public DeleteNodeOperator(GraphViewConnection dbConnection,WBooleanExpression search, string Selectstr)
+        public DeleteNodeOperator(GraphViewConnection dbConnection,string collection,WBooleanExpression search, string Selectstr)
         {
             this.dbConnection = dbConnection;
             this.search = search;
             this.Selectstr = Selectstr;
+            this.collection = collection;
             Open();
         }
 

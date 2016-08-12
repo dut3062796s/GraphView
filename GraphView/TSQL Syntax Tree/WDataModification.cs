@@ -183,11 +183,11 @@ namespace GraphView
         /// </summary>
         /// <param name="docDbConnection">The Connection</param>
         /// <returns></returns>
-        public override GraphViewOperator Generate(GraphViewConnection dbConnection, string collect)
+        public override GraphViewOperator Generate(GraphViewConnection dbConnection, string collection)
         {
             string Json_str = ConstructNode();
 
-            InsertNodeOperator InsertOp = new InsertNodeOperator(dbConnection,Json_str);
+            InsertNodeOperator InsertOp = new InsertNodeOperator(dbConnection,collection,Json_str);
 
             return InsertOp;
         }
@@ -290,7 +290,7 @@ namespace GraphView
             return Edge;
         }
 
-        public override GraphViewOperator Generate(GraphViewConnection dbConnection)
+        public override GraphViewOperator Generate(GraphViewConnection dbConnection, string collection)
         {
             var SelectQueryBlock = SelectInsertSource.Select as WSelectQueryBlock;
             
@@ -324,11 +324,11 @@ namespace GraphView
             n4_SelectExpr.MultiPartIdentifier.Identifiers.Add((n2.SelectExpr as WColumnReferenceExpression).MultiPartIdentifier.Identifiers[0]);
             n4_SelectExpr.MultiPartIdentifier.Identifiers.Add(dic_iden);
 
-            GraphViewOperator input = SelectQueryBlock.Generate(dbConnection);
+            GraphViewOperator input = SelectQueryBlock.Generate(dbConnection, collection);
             if (input == null)
                 throw new GraphViewException("The insert source of the INSERT EDGE statement is invalid.");
             
-            InsertEdgeOperator InsertOp = new InsertEdgeOperator(dbConnection, input, Edge, n1.ToString(), n2.ToString());
+            InsertEdgeOperator InsertOp = new InsertEdgeOperator(dbConnection,collection, input, Edge, n1.ToString(), n2.ToString());
             
             return InsertOp;
         }
@@ -457,7 +457,7 @@ namespace GraphView
         /// </summary>
         /// <param name="docDbConnection">The Connection</param>
         /// <returns></returns>
-        public override GraphViewOperator Generate(GraphViewConnection dbConnection)
+        public override GraphViewOperator Generate(GraphViewConnection dbConnection, string collection)
         {
             var search = WhereClause.SearchCondition;
             //build up the query
@@ -472,7 +472,7 @@ namespace GraphView
                              @" and (ARRAY_LENGTH(Node._edge)>0 or ARRAY_LENGTH(Node._reverse_edge)>0)  ";
             }
             
-            DeleteNodeOperator Deleteop = new DeleteNodeOperator(dbConnection, search, Selectstr);
+            DeleteNodeOperator Deleteop = new DeleteNodeOperator(dbConnection, collection, search, Selectstr);
 
             return Deleteop;
         }
@@ -620,7 +620,7 @@ namespace GraphView
             {
                 throw new GraphViewException("The delete source of the DELETE EDGE statement is invalid.");
             }
-            DeleteEdgeOperator DeleteOp = new DeleteEdgeOperator(connection, input, n1.ToString(), n2.ToString(), n3.ToString(), n4.ToString());
+            DeleteEdgeOperator DeleteOp = new DeleteEdgeOperator(connection,collection, input, n1.ToString(), n2.ToString(), n3.ToString(), n4.ToString());
 
             return DeleteOp;
         }
