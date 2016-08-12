@@ -6,17 +6,19 @@ using System.Text;
 using System.Threading.Tasks;
 using JsonServer.JsonQuery;
 using Microsoft.Azure.Documents.Client;
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 using Newtonsoft.Json.Linq;
 
 namespace GraphView
 {
     public abstract class DBPortal
     {
+
         public abstract void InsertDocument(string doc, string collection);
         public abstract void DeleteDocument(string DocID, string collection);
         public abstract void ReplaceDocument(string DocID, string NewDoc, string collection);
         public abstract IDataReader RetriveDocument(string collection, string script);
-
+        public abstract string ConsturctDeleteNodeScript();
         public abstract void TranslateScriptSegment(List<string> ProcessedNodeList, MatchNode node, List<string> header,
             int pStartOfResultField);
 
